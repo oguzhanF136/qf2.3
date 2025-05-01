@@ -1,10 +1,28 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
 
-# testing
-/coverage
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build files
+dist/
+build/
+*.log
+
+# Testing
+coverage/
 
 # next.js
 /.next/
@@ -17,15 +35,6 @@
 # misc
 .DS_Store
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-.env
 
 # vercel
 .vercel

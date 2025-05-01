@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantiFlows - Kayıt Ol</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #3b82f6;
+            --accent-color: #60a5fa;
+            --bg-color: #f8fafc;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --card-bg: #ffffff;
+            --hover-bg: #f1f5f9;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --text-color: #e2e8f0;
+            --border-color: #334155;
+            --card-bg: #1e293b;
+            --hover-bg: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background-color: var(--card-bg);
+            padding: 1rem 2rem;
+            box-shadow: var(--shadow);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .nav-link:hover {
+            color: var(--primary-color);
+        }
+
+        .register-container {
+            width: 90%;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+
+        @media (max-width: 1400px) {
+            .register-container {
+                width: 90%;
+                max-width: 500px;
+                padding: 30px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .register-container {
+                width: 90%;
+                max-width: 500px;
+                padding: 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .register-container {
+                width: 90%;
+                max-width: 500px;
+                padding: 30px;
+                margin: 40px auto;
+            }
+        }
+
+        .register-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .register-header h1 {
+            font-size: 2.2rem;
+            color: var(--primary-color);
+            margin-bottom: 0.75rem;
+        }
+
+        .register-header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            margin-bottom: 0.4rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            font-size: 1.1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 0.8rem;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: var(--transition);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .submit-btn {
+            width: 100%;
+            max-width: 100%;
+            padding: 1.2rem;
+            font-size: 1.2rem;
+            margin-top: 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .login-link {
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        .login-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .success-message {
+            color: var(--success-color);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1.5rem;
+        }
+
+        .password-requirements {
+            margin-top: 0.5rem;
+        }
+
+        .requirement {
+            margin-top: 0.3rem;
+        }
+
+        .requirement.valid {
+            color: var(--success-color);
+        }
+
+        .requirement.invalid {
+            color: var(--error-color);
+        }
+
+        .social-login {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .social-login p {
+            margin-bottom: 1rem;
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        .social-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .social-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .social-button:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .social-button img {
+            width: 20px;
+            height: 20px;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 1.5rem 0;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .divider span {
+            padding: 0 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="/" class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                QuantiFlows
+            </a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Ana Sayfa</a>
+                <a href="old_index.html" class="nav-link">Dashboard</a>
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="register-container">
+        <div class="register-header">
+            <h1>Kayıt Ol</h1>
+            <p>QuantiFlows'a hoş geldiniz</p>
+        </div>
+
+        <div class="social-login">
+            <p>Hızlı giriş yapın</p>
+            <div class="social-buttons">
+                <button class="social-button">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+                    Google ile devam et
+                </button>
+                <button class="social-button">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/facebook.svg" alt="Facebook">
+                    Facebook ile devam et
+                </button>
+            </div>
+        </div>
+
+        <div class="divider">
+            <span>veya</span>
+        </div>
+
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">Ad Soyad</label>
+                <input type="text" id="name" name="name" required>
+                <div class="error-message" id="nameError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">E-posta</label>
+                <input type="email" id="email" name="email" required>
+                <div class="error-message" id="emailError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Şifre</label>
+                <input type="password" id="password" name="password" required>
+                <div class="password-requirements">
+                    <div class="requirement" id="lengthReq">En az 8 karakter</div>
+                    <div class="requirement" id="upperReq">En az 1 büyük harf</div>
+                    <div class="requirement" id="lowerReq">En az 1 küçük harf</div>
+                    <div class="requirement" id="numberReq">En az 1 rakam</div>
+                    <div class="requirement" id="specialReq">En az 1 özel karakter</div>
+                </div>
+                <div class="error-message" id="passwordError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Şifre Tekrar</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+                <div class="error-message" id="confirmPasswordError"></div>
+            </div>
+
+            <button type="submit" class="submit-btn">Kayıt Ol</button>
+            <div class="success-message" id="successMessage"></div>
+        </form>
+
+        <div class="login-link">
+            Zaten hesabınız var mı? <a href="login.html">Giriş Yap</a>
+        </div>
+    </div>
+
+    <script>
+        // Tema değiştirme
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        themeToggle.addEventListener('click', () => {
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️';
+            }
+            localStorage.setItem('theme', body.getAttribute('data-theme') || 'light');
+        });
+
+        // Sayfa yüklendiğinde tema kontrolü
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                body.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️';
+            }
+        });
+
+        // Form doğrulama
+        const form = document.getElementById('registerForm');
+        const password = document.getElementById('password');
+        const confirmPassword = document.getElementById('confirmPassword');
+        const requirements = {
+            length: document.getElementById('lengthReq'),
+            upper: document.getElementById('upperReq'),
+            lower: document.getElementById('lowerReq'),
+            number: document.getElementById('numberReq'),
+            special: document.getElementById('specialReq')
+        };
+
+        function validatePassword(value) {
+            const conditions = {
+                length: value.length >= 8,
+                upper: /[A-Z]/.test(value),
+                lower: /[a-z]/.test(value),
+                number: /[0-9]/.test(value),
+                special: /[!@#$%^&*]/.test(value)
+            };
+
+            Object.keys(conditions).forEach(key => {
+                requirements[key].classList.toggle('valid', conditions[key]);
+                requirements[key].classList.toggle('invalid', !conditions[key]);
+            });
+
+            return Object.values(conditions).every(condition => condition);
+        }
+
+        password.addEventListener('input', () => {
+            validatePassword(password.value);
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const passwordValue = password.value;
+            const confirmPasswordValue = confirmPassword.value;
+            let isValid = true;
+
+            // Ad kontrolü
+            if (name.length < 3) {
+                document.getElementById('nameError').textContent = 'Ad en az 3 karakter olmalıdır';
+                document.getElementById('nameError').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('nameError').style.display = 'none';
+            }
+
+            // E-posta kontrolü
+            if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                document.getElementById('emailError').textContent = 'Geçerli bir e-posta adresi giriniz';
+                document.getElementById('emailError').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('emailError').style.display = 'none';
+            }
+
+            // Şifre kontrolü
+            if (!validatePassword(passwordValue)) {
+                document.getElementById('passwordError').textContent = 'Şifre gereksinimleri karşılanmıyor';
+                document.getElementById('passwordError').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('passwordError').style.display = 'none';
+            }
+
+            // Şifre eşleşme kontrolü
+            if (passwordValue !== confirmPasswordValue) {
+                document.getElementById('confirmPasswordError').textContent = 'Şifreler eşleşmiyor';
+                document.getElementById('confirmPasswordError').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('confirmPasswordError').style.display = 'none';
+            }
+
+            if (isValid) {
+                // Form başarıyla gönderildi
+                document.getElementById('successMessage').textContent = 'Kayıt başarıyla tamamlandı!';
+                document.getElementById('successMessage').style.display = 'block';
+                
+                // Formu sıfırla
+                form.reset();
+                
+                // 2 saniye sonra dashboard'a yönlendir
+                setTimeout(() => {
+                    window.location.href = 'old_index.html';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html> 
