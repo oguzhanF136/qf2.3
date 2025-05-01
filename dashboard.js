@@ -476,38 +476,66 @@ function connectWebSocket() {
         }
 
         console.log('WebSocket bağlantısı başlatılıyor...');
+<<<<<<< HEAD
         
         // Alternatif WebSocket URL'si
         const wsUrl = 'wss://stream.binance.com:9443/ws';
         console.log('Bağlanılacak URL:', wsUrl);
         
         ws = new WebSocket(wsUrl);
+=======
+        ws = new WebSocket('wss://fstream.binance.com/ws');
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
 
         ws.onopen = () => {
             console.log('WebSocket bağlantısı başarılı');
             reconnectAttempts = 0;
             updateStatus(true);
             
+<<<<<<< HEAD
             // Subscribe to ticker stream
             const subscribeMsg = {
                 method: "SUBSCRIBE",
                 params: [
                     "btcusdt@ticker"
+=======
+            // Subscribe to mark price stream
+            const subscribeMsg = {
+                method: "SUBSCRIBE",
+                params: [
+                    "btcusdt@markPrice@1s",
+                    "ethusdt@markPrice@1s",
+                    "bnbusdt@markPrice@1s",
+                    "xrpusdt@markPrice@1s",
+                    "adausdt@markPrice@1s",
+                    "dogeusdt@markPrice@1s",
+                    "dotusdt@markPrice@1s",
+                    "uniusdt@markPrice@1s"
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
                 ],
                 id: 1
             };
 
             try {
+<<<<<<< HEAD
                 console.log('Abonelik mesajı gönderiliyor...');
                 ws.send(JSON.stringify(subscribeMsg));
                 console.log('Abonelik mesajı gönderildi');
+=======
+                ws.send(JSON.stringify(subscribeMsg));
+                console.log('Abonelik mesajı gönderildi:', subscribeMsg);
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             } catch (error) {
                 console.error('Abonelik mesajı gönderme hatası:', error);
             }
         };
 
         ws.onclose = (event) => {
+<<<<<<< HEAD
             console.log('WebSocket bağlantısı kapandı. Kod:', event.code, 'Sebep:', event.reason);
+=======
+            console.log('WebSocket bağlantısı kapandı:', event.code, event.reason);
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             updateStatus(false);
             
             if (reconnectAttempts < maxReconnectAttempts) {
@@ -522,7 +550,10 @@ function connectWebSocket() {
 
         ws.onerror = (error) => {
             console.error('WebSocket hatası:', error);
+<<<<<<< HEAD
             console.error('WebSocket durumu:', ws.readyState);
+=======
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
         };
 
@@ -531,17 +562,28 @@ function connectWebSocket() {
                 const data = JSON.parse(event.data);
                 console.log('Gelen veri:', data);
                 
+<<<<<<< HEAD
                 if (data.e === 'ticker') {
+=======
+                if (data.e === 'markPriceUpdate') {
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
                     const symbol = data.s;
                     const indicators = await updateKlineData(symbol);
                     const macdData = calculateMACD(indicators.prices);
                     
                     const market = {
                         symbol: symbol,
+<<<<<<< HEAD
                         price: parseFloat(data.c),
                         change24h: parseFloat(data.P),
                         volume24h: parseFloat(data.v || 0),
                         signal: generateSignal(indicators.rsi, macdData, parseFloat(data.P)),
+=======
+                        price: parseFloat(data.p),
+                        change24h: parseFloat(data.r),
+                        volume24h: parseFloat(data.v || 0),
+                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
                         rsi: indicators.rsi,
                         macd: macdData,
                         openInterest: parseFloat(data.o || 0),
@@ -557,7 +599,10 @@ function connectWebSocket() {
         };
     } catch (error) {
         console.error('WebSocket bağlantı hatası:', error);
+<<<<<<< HEAD
         console.error('Hata detayları:', error.message);
+=======
+>>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
         if (reconnectAttempts < maxReconnectAttempts) {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
             setTimeout(connectWebSocket, delay);
