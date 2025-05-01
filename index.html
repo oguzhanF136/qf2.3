@@ -504,7 +504,7 @@
                 <button class="info-tab" data-tab="macd">MACD</button>
                 <button class="info-tab" data-tab="oi">Open Interest</button>
                 <button class="info-tab" data-tab="lsr">Long/Short</button>
-                <button class="info-tab" data-tab="signal">Sinyaller</button>
+                <!-- <button class="info-tab" data-tab="signal">Sinyaller</button> -->
             </div>
             
             <div class="info-content">
@@ -596,7 +596,7 @@
                     <th>Price</th>
                     <th>24h Change</th>
                     <th>24h Volume</th>
-                    <th>Signal</th>
+                    <!-- <th>Signal</th> -->
                     <th>RSI</th>
                     <th>MACD</th>
                     <th>Open Interest</th>
@@ -1029,10 +1029,6 @@
                 const volumeCell = document.createElement('td');
                 volumeCell.textContent = market.volume24h.toLocaleString();
                 row.appendChild(volumeCell);
-
-                // Signal
-                const signalCell = displaySignal(market.signal);
-                row.appendChild(signalCell);
 
                 // RSI
                 const rsiCell = document.createElement('td');
