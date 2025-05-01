@@ -472,50 +472,85 @@ function connectWebSocket() {
     try {
         if (ws) {
             ws.close();
+            ws = null;
         }
 
+        console.log('WebSocket bağlantısı başlatılıyor...');
         ws = new WebSocket('wss://fstream.binance.com/ws');
 
         ws.onopen = () => {
-            console.log('WebSocket bağlantısı kuruldu');
+            console.log('WebSocket bağlantısı başarılı');
             reconnectAttempts = 0;
+            updateStatus(true);
             
-            // Subscribe to ticker stream
+            // Subscribe to mark price stream
             const subscribeMsg = {
                 method: "SUBSCRIBE",
                 params: [
-                    "btcusdt@ticker",
-                    "ethusdt@ticker",
-                    "bnbusdt@ticker",
-                    "xrpusdt@ticker",
-                    "adausdt@ticker",
-                    "dogeusdt@ticker",
-                    "dotusdt@ticker",
-                    "uniusdt@ticker"
+                    "btcusdt@markPrice@1s",
+                    "ethusdt@markPrice@1s",
+                    "bnbusdt@markPrice@1s",
+                    "xrpusdt@markPrice@1s",
+                    "adausdt@markPrice@1s",
+                    "dogeusdt@markPrice@1s",
+                    "dotusdt@markPrice@1s",
+                    "uniusdt@markPrice@1s"
                 ],
                 id: 1
             };
-            ws.send(JSON.stringify(subscribeMsg));
+
+            try {
+                ws.send(JSON.stringify(subscribeMsg));
+                console.log('Abonelik mesajı gönderildi:', subscribeMsg);
+            } catch (error) {
+                console.error('Abonelik mesajı gönderme hatası:', error);
+            }
         };
 
         ws.onclose = (event) => {
             console.log('WebSocket bağlantısı kapandı:', event.code, event.reason);
+            updateStatus(false);
+            
             if (reconnectAttempts < maxReconnectAttempts) {
-                console.log(`${reconnectDelay/1000} saniye sonra yeniden bağlanılacak...`);
-                setTimeout(connectWebSocket, reconnectDelay);
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                console.log(`${delay/1000} saniye sonra yeniden bağlanılacak... (Deneme ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+                setTimeout(connectWebSocket, delay);
                 reconnectAttempts++;
+            } else {
+                console.log('Maksimum yeniden bağlanma denemesi aşıldı');
             }
         };
 
         ws.onerror = (error) => {
             console.error('WebSocket hatası:', error);
+            addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
         };
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
                 console.log('Gelen veri:', data);
-                // Veri işleme kodları buraya gelecek
+                
+                if (data.e === 'markPriceUpdate') {
+                    const symbol = data.s;
+                    const indicators = await updateKlineData(symbol);
+                    const macdData = calculateMACD(indicators.prices);
+                    
+                    const market = {
+                        symbol: symbol,
+                        price: parseFloat(data.p),
+                        change24h: parseFloat(data.r),
+                        volume24h: parseFloat(data.v || 0),
+                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
+                        rsi: indicators.rsi,
+                        macd: macdData,
+                        openInterest: parseFloat(data.o || 0),
+                        longShortRatio: parseFloat(data.l || 0)
+                    };
+                    
+                    markets.set(symbol, market);
+                    updateMarketTable();
+                }
             } catch (error) {
                 console.error('Veri işleme hatası:', error);
             }
@@ -523,7 +558,8 @@ function connectWebSocket() {
     } catch (error) {
         console.error('WebSocket bağlantı hatası:', error);
         if (reconnectAttempts < maxReconnectAttempts) {
-            setTimeout(connectWebSocket, reconnectDelay);
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            setTimeout(connectWebSocket, delay);
             reconnectAttempts++;
         }
     }
