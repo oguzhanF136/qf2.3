@@ -1,0 +1,33 @@
+{
+  "name": "market-data-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+<<<<<<< HEAD
+    "build": "next build && next export -o dist",
+=======
+    "build": "next build",
+>>>>>>> 20de08d4842c01023cc1551bf528befade1c0321
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "binance-api-node": "^0.12.7",
+    "next": "14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.0.1",
+    "recharts": "^2.12.0",
+    "typescript": "^5.3.3",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.0.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0"
+  }
+}

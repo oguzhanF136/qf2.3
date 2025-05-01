@@ -1,0 +1,218 @@
+// Open Interest hesaplama fonksiyonu
+function calculateOpenInterest(openInterest, previousOpenInterest) {
+    // Değerlerin geçerliliğini kontrol et
+    const currentOI = Number(openInterest) || 0;
+    const prevOI = Number(previousOpenInterest) || 0;
+    
+    // Değişim yüzdesini hesapla
+    const change = prevOI > 0 ? ((currentOI - prevOI) / prevOI) * 100 : 0;
+    
+    // Değişim miktarını hesapla
+    const changeAmount = currentOI - prevOI;
+    
+    // Değişim yönünü belirle
+    const direction = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+    
+    return {
+        value: currentOI,
+        change: change,
+        changeAmount: changeAmount,
+        direction: direction,
+        previousValue: prevOI
+    };
+}
+
+// Open Interest görüntüleme fonksiyonu
+function displayOpenInterest(oiData) {
+    const oiCell = document.createElement('td');
+    
+    // Ana değeri göster
+    const valueSpan = document.createElement('span');
+    valueSpan.textContent = oiData.value.toLocaleString();
+    
+    // Değişim bilgisini göster
+    if (oiData.change !== 0) {
+        const changeSpan = document.createElement('span');
+        changeSpan.textContent = ` (${oiData.change > 0 ? '+' : ''}${oiData.change.toFixed(2)}%)`;
+        changeSpan.className = oiData.change > 0 ? 'positive' : 'negative';
+        oiCell.appendChild(valueSpan);
+        oiCell.appendChild(changeSpan);
+    } else {
+        oiCell.appendChild(valueSpan);
+    }
+    
+    // Renklendirme
+    if (oiData.direction === 'up') {
+        oiCell.className = 'positive';
+    } else if (oiData.direction === 'down') {
+        oiCell.className = 'negative';
+    } else {
+        oiCell.className = 'neutral';
+    }
+    
+    // Tooltip ekle
+    oiCell.title = `Önceki Değer: ${oiData.previousValue.toLocaleString()}\n` +
+                   `Değişim: ${oiData.changeAmount > 0 ? '+' : ''}${oiData.changeAmount.toLocaleString()}\n` +
+                   `Değişim Yüzdesi: ${oiData.change > 0 ? '+' : ''}${oiData.change.toFixed(2)}%`;
+    
+    return oiCell;
+}
+
+// Geliştirilmiş Open Interest görüntüleme fonksiyonu
+function displayOpenInterestDetail(oiData) {
+    const container = document.createElement('div');
+    container.className = 'open-interest-detail';
+    
+    // Ana değer
+    const valueElement = document.createElement('div');
+    valueElement.className = 'oi-value';
+    valueElement.textContent = oiData.value.toLocaleString();
+    
+    // Değişim göstergesi
+    const changeElement = document.createElement('div');
+    changeElement.className = `oi-change ${oiData.direction}`;
+    
+    // Değişim ok işareti
+    const arrow = document.createElement('span');
+    arrow.className = 'oi-arrow';
+    arrow.textContent = oiData.direction === 'up' ? '↑' : oiData.direction === 'down' ? '↓' : '→';
+    
+    // Değişim değeri
+    const changeValue = document.createElement('span');
+    changeValue.textContent = `${oiData.change > 0 ? '+' : ''}${oiData.change.toFixed(2)}%`;
+    
+    changeElement.appendChild(arrow);
+    changeElement.appendChild(changeValue);
+    
+    // Progress bar
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'oi-progress';
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'oi-progress-bar';
+    progressBar.style.width = `${Math.min(Math.abs(oiData.change), 100)}%`;
+    progressBar.style.backgroundColor = oiData.direction === 'up' ? 'var(--positive-color)' : 'var(--negative-color)';
+    
+    progressContainer.appendChild(progressBar);
+    
+    // Bileşenleri bir araya getir
+    container.appendChild(valueElement);
+    container.appendChild(changeElement);
+    container.appendChild(progressContainer);
+    
+    // Tooltip ekle
+    container.title = `Önceki Değer: ${oiData.previousValue.toLocaleString()}\n` +
+                     `Değişim: ${oiData.changeAmount > 0 ? '+' : ''}${oiData.changeAmount.toLocaleString()}\n` +
+                     `Değişim Yüzdesi: ${oiData.change > 0 ? '+' : ''}${oiData.change.toFixed(2)}%`;
+    
+    return container;
+}
+
+// CSS Stilleri (Referans için)
+/*
+.open-interest-detail {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 4px;
+}
+
+.oi-value {
+    font-weight: bold;
+    text-align: center;
+}
+
+.oi-change {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.oi-change.up {
+    color: var(--positive-color);
+}
+
+.oi-change.down {
+    color: var(--negative-color);
+}
+
+.oi-change.neutral {
+    color: var(--neutral-color);
+}
+
+.oi-arrow {
+    font-size: 1.2em;
+}
+
+.oi-progress {
+    width: 100%;
+    height: 4px;
+    background-color: var(--neutral-bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.oi-progress-bar {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.positive {
+    color: var(--positive-color);
+    background-color: var(--long-bg);
+}
+
+.negative {
+    color: var(--negative-color);
+    background-color: var(--short-bg);
+}
+
+.neutral {
+    color: var(--neutral-color);
+    background-color: var(--neutral-bg);
+}
+*/
+
+// Kullanım örneği:
+/*
+const currentOI = 1500000;
+const previousOI = 1200000;
+
+const oiData = calculateOpenInterest(currentOI, previousOI);
+const oiCell = displayOpenInterest(oiData);
+
+// Alternatif olarak detaylı görünüm
+const detailView = displayOpenInterestDetail(oiData);
+*/
+
+// Open Interest yorumlama mantığı:
+/*
+1. Yüksek Open Interest (> 1.5x ortalama)
+   - Piyasada yüksek likidite var
+   - İşlem hacmi yüksek
+   - Fiyat hareketleri daha güvenilir
+   - Dikkat: Aşırı alım/satım sinyali olabilir
+
+2. Düşük Open Interest (< 0.5x ortalama)
+   - Piyasada düşük likidite
+   - İşlem hacmi düşük
+   - Fiyat hareketleri daha volatil
+   - Dikkat: Manipülasyon riski artabilir
+
+3. Artan Open Interest
+   - Yeni pozisyonlar açılıyor
+   - Piyasa ilgisi artıyor
+   - Trend güçleniyor olabilir
+
+4. Azalan Open Interest
+   - Pozisyonlar kapatılıyor
+   - Piyasa ilgisi azalıyor
+   - Trend zayıflıyor olabilir
+
+5. Stabil Open Interest
+   - Piyasa dengede
+   - Mevcut trend devam edebilir
+   - Yön belirsiz
+*/ 

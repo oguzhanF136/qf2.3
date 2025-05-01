@@ -1,0 +1,130 @@
+// Signal hesaplama fonksiyonu
+function generateSignal(rsi, macdData, priceChange) {
+    // RSI sinyalleri - daha hassas bölgeler
+    let rsiSignal = 'NEUTRAL';
+    if (rsi > 75) rsiSignal = 'SHORT';
+    else if (rsi > 65) rsiSignal = 'WEAK_SHORT';
+    else if (rsi < 25) rsiSignal = 'LONG';
+    else if (rsi < 35) rsiSignal = 'WEAK_LONG';
+    
+    // MACD sinyalleri - histogram değerine göre
+    let macdSignal = 'NEUTRAL';
+    const macdStrength = Math.abs(macdData.histogram);
+    if (macdData.histogram > 0) {
+        macdSignal = macdStrength > 10 ? 'LONG' : 'WEAK_LONG';
+    } else if (macdData.histogram < 0) {
+        macdSignal = macdStrength > 10 ? 'SHORT' : 'WEAK_SHORT';
+    }
+    
+    // Fiyat değişimi sinyalleri - yüzdeye göre
+    let priceSignal = 'NEUTRAL';
+    if (priceChange > 2) priceSignal = 'LONG';
+    else if (priceChange > 0.5) priceSignal = 'WEAK_LONG';
+    else if (priceChange < -2) priceSignal = 'SHORT';
+    else if (priceChange < -0.5) priceSignal = 'WEAK_SHORT';
+
+    // Sinyal gücü hesaplama
+    let signalStrength = 0;
+    if (rsiSignal === 'LONG' || macdSignal === 'LONG' || priceSignal === 'LONG') signalStrength += 2;
+    if (rsiSignal === 'WEAK_LONG' || macdSignal === 'WEAK_LONG' || priceSignal === 'WEAK_LONG') signalStrength += 1;
+    if (rsiSignal === 'SHORT' || macdSignal === 'SHORT' || priceSignal === 'SHORT') signalStrength -= 2;
+    if (rsiSignal === 'WEAK_SHORT' || macdSignal === 'WEAK_SHORT' || priceSignal === 'WEAK_SHORT') signalStrength -= 1;
+
+    // Final sinyal belirleme
+    if (signalStrength >= 3) return 'LONG';
+    if (signalStrength >= 1) return 'WEAK_LONG';
+    if (signalStrength <= -3) return 'SHORT';
+    if (signalStrength <= -1) return 'WEAK_SHORT';
+    return 'NEUTRAL';
+}
+
+// Signal görüntüleme fonksiyonu
+function displaySignal(signal) {
+    const signalCell = document.createElement('td');
+    signalCell.textContent = signal;
+    
+    // Signal renklendirme
+    if (signal === 'LONG') {
+        signalCell.className = 'long';
+    } else if (signal === 'WEAK_LONG') {
+        signalCell.className = 'weak-long';
+    } else if (signal === 'SHORT') {
+        signalCell.className = 'short';
+    } else if (signal === 'WEAK_SHORT') {
+        signalCell.className = 'weak-short';
+    } else {
+        signalCell.className = 'neutral';
+    }
+    
+    return signalCell;
+}
+
+// CSS Stilleri
+/*
+.long {
+    background-color: var(--long-bg);
+}
+
+.weak-long {
+    background-color: var(--weak-long-bg);
+    color: var(--positive-color);
+}
+
+.short {
+    background-color: var(--short-bg);
+}
+
+.weak-short {
+    background-color: var(--weak-short-bg);
+    color: var(--negative-color);
+}
+
+.neutral {
+    background-color: var(--neutral-bg);
+}
+*/
+
+// Kullanım örneği:
+/*
+const rsi = 70; // RSI değeri
+const macdData = {
+    macd: 1.5,
+    signal: 1.2,
+    histogram: 0.3
+};
+const priceChange = 1.8; // Yüzde olarak fiyat değişimi
+
+const signal = generateSignal(rsi, macdData, priceChange);
+const signalCell = displaySignal(signal);
+*/
+
+// Sinyal gücü hesaplama mantığı:
+/*
+1. RSI Sinyalleri:
+   - RSI > 75: SHORT
+   - RSI > 65: WEAK_SHORT
+   - RSI < 25: LONG
+   - RSI < 35: WEAK_LONG
+   - Diğer: NEUTRAL
+
+2. MACD Sinyalleri:
+   - Histogram > 0 ve güç > 10: LONG
+   - Histogram > 0 ve güç <= 10: WEAK_LONG
+   - Histogram < 0 ve güç > 10: SHORT
+   - Histogram < 0 ve güç <= 10: WEAK_SHORT
+   - Diğer: NEUTRAL
+
+3. Fiyat Değişimi Sinyalleri:
+   - Değişim > 2%: LONG
+   - Değişim > 0.5%: WEAK_LONG
+   - Değişim < -2%: SHORT
+   - Değişim < -0.5%: WEAK_SHORT
+   - Diğer: NEUTRAL
+
+4. Final Sinyal Hesaplama:
+   - Güçlü LONG: +3 veya daha fazla
+   - Zayıf LONG: +1 veya +2
+   - Güçlü SHORT: -3 veya daha az
+   - Zayıf SHORT: -1 veya -2
+   - NEUTRAL: 0
+*/ 
