@@ -468,48 +468,117 @@ async function updateKlineData(symbol) {
 // WebSocket bağlantısı
 connectBtn.addEventListener('click', async () => {
     try {
-        ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
-        updateStatus(true);
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+
+        // Binance Futures WebSocket URL'si
+        ws = new WebSocket('wss://fstream.binance.com/ws');
+        
+        ws.onopen = () => {
+            updateStatus(true);
+            console.log('WebSocket bağlantısı başarılı');
+            
+            // Futures market verilerini almak için abonelik mesajı
+            const subscribeMessage = {
+                method: "SUBSCRIBE",
+                params: [
+                    "btcusdt@markPrice@1s",
+                    "ethusdt@markPrice@1s",
+                    "bnbusdt@markPrice@1s",
+                    "solusdt@markPrice@1s",
+                    "adausdt@markPrice@1s",
+                    "dogeusdt@markPrice@1s",
+                    "xrpusdt@markPrice@1s",
+                    "dotusdt@markPrice@1s",
+                    "avaxusdt@markPrice@1s",
+                    "maticusdt@markPrice@1s",
+                    "linkusdt@markPrice@1s",
+                    "ltcusdt@markPrice@1s",
+                    "uniusdt@markPrice@1s",
+                    "atomusdt@markPrice@1s",
+                    "filusdt@markPrice@1s",
+                    "axsusdt@markPrice@1s",
+                    "nearusdt@markPrice@1s",
+                    "algousdt@markPrice@1s",
+                    "vetusdt@markPrice@1s",
+                    "icpusdt@markPrice@1s",
+                    "arbusdt@markPrice@1s",
+                    "opusdt@markPrice@1s",
+                    "aptusdt@markPrice@1s",
+                    "injusdt@markPrice@1s",
+                    "grtusdt@markPrice@1s",
+                    "aaveusdt@markPrice@1s",
+                    "snxusdt@markPrice@1s",
+                    "crvusdt@markPrice@1s",
+                    "1inchusdt@markPrice@1s",
+                    "ensusdt@markPrice@1s",
+                    "compusdt@markPrice@1s",
+                    "sushiusdt@markPrice@1s",
+                    "cakeusdt@markPrice@1s",
+                    "sandusdt@markPrice@1s",
+                    "manausdt@markPrice@1s",
+                    "galausdt@markPrice@1s",
+                    "chzusdt@markPrice@1s",
+                    "lrcusdt@markPrice@1s",
+                    "imxusdt@markPrice@1s",
+                    "rndrusdt@markPrice@1s"
+                ],
+                id: 1
+            };
+            ws.send(JSON.stringify(subscribeMessage));
+        };
 
         ws.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
                 
-                if (data.e === '24hrTicker') {
+                if (data.e === 'markPriceUpdate') {
                     const symbol = data.s;
                     const indicators = await updateKlineData(symbol);
                     const macdData = calculateMACD(indicators.prices);
-                    const signal = generateSignal(indicators.rsi, macdData, parseFloat(data.P));
-
+                    
+                    // Futures verilerini işle
                     const market = {
                         symbol: symbol,
-                        price: parseFloat(data.c),
-                        change24h: parseFloat(data.P),
-                        volume24h: parseFloat(data.v),
-                        signal: signal,
+                        price: parseFloat(data.p), // Mark price
+                        change24h: parseFloat(data.r), // 24h funding rate
+                        volume24h: parseFloat(data.v || 0), // 24h volume
+                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
                         rsi: indicators.rsi,
                         macd: macdData,
-                        openInterest: parseFloat(data.o || 0),
-                        longShortRatio: parseFloat(data.l || 0)
+                        openInterest: parseFloat(data.o || 0), // Open interest
+                        longShortRatio: parseFloat(data.l || 0) // Long/short ratio
                     };
                     
                     markets.set(symbol, market);
                     updateMarketTable();
                 }
             } catch (error) {
+                console.error('Veri işleme hatası:', error);
                 addLog(`Veri işleme hatası: ${error.message}`);
             }
         };
 
         ws.onclose = (event) => {
+            console.log('WebSocket bağlantısı kapandı:', event.code, event.reason);
             updateStatus(false);
+            // Bağlantı kapandığında otomatik olarak yeniden bağlanmayı dene
+            setTimeout(() => {
+                if (!ws) {
+                    connectBtn.click();
+                }
+            }, 5000);
         };
 
         ws.onerror = (error) => {
+            console.error('WebSocket hatası:', error);
             addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
             updateStatus(false);
         };
     } catch (error) {
+        console.error('Bağlantı hatası:', error);
         addLog(`Bağlantı hatası: ${error.message}`);
         updateStatus(false);
     }
