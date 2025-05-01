@@ -10,8 +10,20 @@ const app = express();
 const port = process.env.PORT || 10000;
 const host = '0.0.0.0';
 
-// Middleware
-app.use(helmet()); // Security headers
+// Custom CSP middleware - should be first
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; connect-src 'self' wss://stream.binance.com:* wss://fstream.binance.com wss://*.binance.com https://*.binance.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https://*.coingecko.com https://assets.coingecko.com; upgrade-insecure-requests;"
+    );
+    next();
+});
+
+// Disable helmet's CSP as we're using our own
+app.use(helmet({
+    contentSecurityPolicy: false
+}));
+
 app.use(cors()); // Enable CORS
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // Logging

@@ -1,5 +1,8 @@
 // WebSocket ve bağlantı yönetimi
 let ws = null;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+const reconnectDelay = 3000; // 3 saniye
 const log = document.getElementById('log');
 const status = document.getElementById('status');
 const connectBtn = document.getElementById('connect');
@@ -29,11 +32,11 @@ function toggleTheme() {
     }
 }
 
-// Sayfa yüklendiğinde tema ayarı
+// Sayfa yüklendiğinde tema ayarı ve WebSocket bağlantısı
 window.addEventListener('load', () => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.body.setAttribute('data-theme', savedTheme);
-    connectBtn.click(); // Bağlan butonuna tıkla
+    connectWebSocket(); // WebSocket bağlantısını başlat
 });
 
 // Tema değiştirme butonu
@@ -465,28 +468,80 @@ async function updateKlineData(symbol) {
     }
 }
 
-// WebSocket bağlantısı
-connectBtn.addEventListener('click', async () => {
+function connectWebSocket() {
     try {
-        ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
-        updateStatus(true);
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+
+        console.log('WebSocket bağlantısı başlatılıyor...');
+        
+        // Alternatif WebSocket URL'si
+        const wsUrl = 'wss://stream.binance.com:9443/ws';
+        console.log('Bağlanılacak URL:', wsUrl);
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket bağlantısı başarılı');
+            reconnectAttempts = 0;
+            updateStatus(true);
+            
+            // Subscribe to ticker stream
+            const subscribeMsg = {
+                method: "SUBSCRIBE",
+                params: [
+                    "btcusdt@ticker"
+                ],
+                id: 1
+            };
+
+            try {
+                console.log('Abonelik mesajı gönderiliyor...');
+                ws.send(JSON.stringify(subscribeMsg));
+                console.log('Abonelik mesajı gönderildi');
+            } catch (error) {
+                console.error('Abonelik mesajı gönderme hatası:', error);
+            }
+        };
+
+        ws.onclose = (event) => {
+            console.log('WebSocket bağlantısı kapandı. Kod:', event.code, 'Sebep:', event.reason);
+            updateStatus(false);
+            
+            if (reconnectAttempts < maxReconnectAttempts) {
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                console.log(`${delay/1000} saniye sonra yeniden bağlanılacak... (Deneme ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+                setTimeout(connectWebSocket, delay);
+                reconnectAttempts++;
+            } else {
+                console.log('Maksimum yeniden bağlanma denemesi aşıldı');
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket hatası:', error);
+            console.error('WebSocket durumu:', ws.readyState);
+            addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
+        };
 
         ws.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
+                console.log('Gelen veri:', data);
                 
-                if (data.e === '24hrTicker') {
+                if (data.e === 'ticker') {
                     const symbol = data.s;
                     const indicators = await updateKlineData(symbol);
                     const macdData = calculateMACD(indicators.prices);
-                    const signal = generateSignal(indicators.rsi, macdData, parseFloat(data.P));
-
+                    
                     const market = {
                         symbol: symbol,
                         price: parseFloat(data.c),
                         change24h: parseFloat(data.P),
-                        volume24h: parseFloat(data.v),
-                        signal: signal,
+                        volume24h: parseFloat(data.v || 0),
+                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.P)),
                         rsi: indicators.rsi,
                         macd: macdData,
                         openInterest: parseFloat(data.o || 0),
@@ -497,23 +552,19 @@ connectBtn.addEventListener('click', async () => {
                     updateMarketTable();
                 }
             } catch (error) {
-                addLog(`Veri işleme hatası: ${error.message}`);
+                console.error('Veri işleme hatası:', error);
             }
         };
-
-        ws.onclose = (event) => {
-            updateStatus(false);
-        };
-
-        ws.onerror = (error) => {
-            addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
-            updateStatus(false);
-        };
     } catch (error) {
-        addLog(`Bağlantı hatası: ${error.message}`);
-        updateStatus(false);
+        console.error('WebSocket bağlantı hatası:', error);
+        console.error('Hata detayları:', error.message);
+        if (reconnectAttempts < maxReconnectAttempts) {
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+            setTimeout(connectWebSocket, delay);
+            reconnectAttempts++;
+        }
     }
-});
+}
 
 // WebSocket bağlantısını kesme
 disconnectBtn.addEventListener('click', () => {
