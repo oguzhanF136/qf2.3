@@ -1,5 +1,8 @@
 // WebSocket ve bağlantı yönetimi
 let ws = null;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+const reconnectDelay = 3000; // 3 saniye
 const log = document.getElementById('log');
 const status = document.getElementById('status');
 const connectBtn = document.getElementById('connect');
@@ -29,11 +32,11 @@ function toggleTheme() {
     }
 }
 
-// Sayfa yüklendiğinde tema ayarı
+// Sayfa yüklendiğinde tema ayarı ve WebSocket bağlantısı
 window.addEventListener('load', () => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.body.setAttribute('data-theme', savedTheme);
-    connectBtn.click(); // Bağlan butonuna tıkla
+    connectWebSocket(); // WebSocket bağlantısını başlat
 });
 
 // Tema değiştirme butonu
@@ -465,124 +468,66 @@ async function updateKlineData(symbol) {
     }
 }
 
-// WebSocket bağlantısı
-connectBtn.addEventListener('click', async () => {
+function connectWebSocket() {
     try {
         if (ws) {
             ws.close();
-            ws = null;
         }
 
-        // Binance Futures WebSocket URL'si
         ws = new WebSocket('wss://fstream.binance.com/ws');
-        
+
         ws.onopen = () => {
-            updateStatus(true);
-            console.log('WebSocket bağlantısı başarılı');
+            console.log('WebSocket bağlantısı kuruldu');
+            reconnectAttempts = 0;
             
-            // Futures market verilerini almak için abonelik mesajı
-            const subscribeMessage = {
+            // Subscribe to ticker stream
+            const subscribeMsg = {
                 method: "SUBSCRIBE",
                 params: [
-                    "btcusdt@markPrice@1s",
-                    "ethusdt@markPrice@1s",
-                    "bnbusdt@markPrice@1s",
-                    "solusdt@markPrice@1s",
-                    "adausdt@markPrice@1s",
-                    "dogeusdt@markPrice@1s",
-                    "xrpusdt@markPrice@1s",
-                    "dotusdt@markPrice@1s",
-                    "avaxusdt@markPrice@1s",
-                    "maticusdt@markPrice@1s",
-                    "linkusdt@markPrice@1s",
-                    "ltcusdt@markPrice@1s",
-                    "uniusdt@markPrice@1s",
-                    "atomusdt@markPrice@1s",
-                    "filusdt@markPrice@1s",
-                    "axsusdt@markPrice@1s",
-                    "nearusdt@markPrice@1s",
-                    "algousdt@markPrice@1s",
-                    "vetusdt@markPrice@1s",
-                    "icpusdt@markPrice@1s",
-                    "arbusdt@markPrice@1s",
-                    "opusdt@markPrice@1s",
-                    "aptusdt@markPrice@1s",
-                    "injusdt@markPrice@1s",
-                    "grtusdt@markPrice@1s",
-                    "aaveusdt@markPrice@1s",
-                    "snxusdt@markPrice@1s",
-                    "crvusdt@markPrice@1s",
-                    "1inchusdt@markPrice@1s",
-                    "ensusdt@markPrice@1s",
-                    "compusdt@markPrice@1s",
-                    "sushiusdt@markPrice@1s",
-                    "cakeusdt@markPrice@1s",
-                    "sandusdt@markPrice@1s",
-                    "manausdt@markPrice@1s",
-                    "galausdt@markPrice@1s",
-                    "chzusdt@markPrice@1s",
-                    "lrcusdt@markPrice@1s",
-                    "imxusdt@markPrice@1s",
-                    "rndrusdt@markPrice@1s"
+                    "btcusdt@ticker",
+                    "ethusdt@ticker",
+                    "bnbusdt@ticker",
+                    "xrpusdt@ticker",
+                    "adausdt@ticker",
+                    "dogeusdt@ticker",
+                    "dotusdt@ticker",
+                    "uniusdt@ticker"
                 ],
                 id: 1
             };
-            ws.send(JSON.stringify(subscribeMessage));
-        };
-
-        ws.onmessage = async (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                
-                if (data.e === 'markPriceUpdate') {
-                    const symbol = data.s;
-                    const indicators = await updateKlineData(symbol);
-                    const macdData = calculateMACD(indicators.prices);
-                    
-                    // Futures verilerini işle
-                    const market = {
-                        symbol: symbol,
-                        price: parseFloat(data.p), // Mark price
-                        change24h: parseFloat(data.r), // 24h funding rate
-                        volume24h: parseFloat(data.v || 0), // 24h volume
-                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
-                        rsi: indicators.rsi,
-                        macd: macdData,
-                        openInterest: parseFloat(data.o || 0), // Open interest
-                        longShortRatio: parseFloat(data.l || 0) // Long/short ratio
-                    };
-                    
-                    markets.set(symbol, market);
-                    updateMarketTable();
-                }
-            } catch (error) {
-                console.error('Veri işleme hatası:', error);
-                addLog(`Veri işleme hatası: ${error.message}`);
-            }
+            ws.send(JSON.stringify(subscribeMsg));
         };
 
         ws.onclose = (event) => {
             console.log('WebSocket bağlantısı kapandı:', event.code, event.reason);
-            updateStatus(false);
-            // Bağlantı kapandığında otomatik olarak yeniden bağlanmayı dene
-            setTimeout(() => {
-                if (!ws) {
-                    connectBtn.click();
-                }
-            }, 5000);
+            if (reconnectAttempts < maxReconnectAttempts) {
+                console.log(`${reconnectDelay/1000} saniye sonra yeniden bağlanılacak...`);
+                setTimeout(connectWebSocket, reconnectDelay);
+                reconnectAttempts++;
+            }
         };
 
         ws.onerror = (error) => {
             console.error('WebSocket hatası:', error);
-            addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
-            updateStatus(false);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Gelen veri:', data);
+                // Veri işleme kodları buraya gelecek
+            } catch (error) {
+                console.error('Veri işleme hatası:', error);
+            }
         };
     } catch (error) {
-        console.error('Bağlantı hatası:', error);
-        addLog(`Bağlantı hatası: ${error.message}`);
-        updateStatus(false);
+        console.error('WebSocket bağlantı hatası:', error);
+        if (reconnectAttempts < maxReconnectAttempts) {
+            setTimeout(connectWebSocket, reconnectDelay);
+            reconnectAttempts++;
+        }
     }
-});
+}
 
 // WebSocket bağlantısını kesme
 disconnectBtn.addEventListener('click', () => {
