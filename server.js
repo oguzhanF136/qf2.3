@@ -23,24 +23,29 @@ app.use(express.static(path.join(__dirname)));
 
 // Routes
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'register.html'));
+    res.sendFile(path.join(__dirname, 'register.html'));
 });
 
 app.get('/old_index', (req, res) => {
-    res.sendFile(path.join(__dirname, 'old_index.html'));
+    res.sendFile(path.join(__dirname, 'old_index.html'));
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
 });
 
 // Start server
 app.listen(port, host, () => {
+<<<<<<< HEAD
     console.log(`Server is running on http://${host}:${port}`);
 }); 
+=======
+    console.log(`Server is running on http://${host}:${port}`);
+});
+>>>>>>> efa7ac496303d8266a3995edfed08857cd61cc1d
