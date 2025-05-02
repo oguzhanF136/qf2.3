@@ -409,75 +409,82 @@ async function fetchOpenInterest(symbol) {
 // Market verilerini güncelleme fonksiyonu
 async function updateMarketTable() {
     try {
-        // Tüm market verilerini çek
         const response = await makeApiRequest(`${BINANCE_API_BASE}/ticker/24hr`);
-        const allMarkets = await response.json();
+        const tickers = await response.json();
         
-        // USDT ile biten ve futures olmayan marketleri filtrele
-        const usdtMarkets = allMarkets.filter(market => 
-            market.symbol.endsWith('USDT') && 
-            !market.symbol.includes('_') &&
-            parseFloat(market.quoteVolume) > 1000000 // Minimum 1M USDT hacim
-        );
-
-        // Hacme göre sırala
-        usdtMarkets.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
+        // Debug: Log the first ticker's structure
+        console.log('Ticker Data Structure:', tickers[0]);
         
-        // İlk 50 marketi al
-        const topMarkets = usdtMarkets.slice(0, 50);
+        const tableBody = document.getElementById('marketData');
+        tableBody.innerHTML = ''; // Clear existing data
         
-        // Her market için detaylı verileri çek
-        for (const market of topMarkets) {
-            const symbol = market.symbol;
+        for (const ticker of tickers) {
+            const row = document.createElement('tr');
             
-            // 24 saatlik veriler
-            const priceChange = parseFloat(market.priceChangePercent);
-            const volume = parseFloat(market.quoteVolume);
-            const high = parseFloat(market.highPrice);
-            const low = parseFloat(market.lowPrice);
-            
-            // Kline verilerini çek
-            const klines = await fetchKlineData(symbol);
-            if (klines.length === 0) {
-                addLog(`Kline verisi bulunamadı, market atlanıyor: ${symbol}`);
-                continue;
-            }
-            
-            // Açık pozisyon verilerini çek
-            const openInterestData = await fetchOpenInterest(symbol);
-            
-            // Teknik göstergeleri hesapla
-            const prices = klines.map(k => k.close);
-            const rsi = calculateRSI(prices);
-            const macdData = calculateMACD(prices);
-            
-            // Signal oluştur
-            const signal = generateSignal(rsi, macdData, priceChange);
-            
-            // Market verilerini güncelle
-            markets.set(symbol, {
-                symbol,
-                price: parseFloat(market.lastPrice),
-                priceChange,
-                volume,
-                high,
-                low,
-                rsi,
-                macd: macdData,
-                signal,
-                openInterest: openInterestData.openInterest,
-                lastUpdate: Date.now()
+            // Debug: Log each ticker's data
+            console.log(`Processing ticker ${ticker.symbol}:`, {
+                price: ticker.lastPrice,
+                change: ticker.priceChangePercent,
+                volume: ticker.volume,
+                high: ticker.highPrice,
+                low: ticker.lowPrice
             });
             
-            // Rate limiting için kısa bir bekleme
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Symbol
+            const symbolCell = document.createElement('td');
+            symbolCell.textContent = ticker.symbol;
+            row.appendChild(symbolCell);
+            
+            // Price
+            const priceCell = document.createElement('td');
+            priceCell.textContent = formatNumber(parseFloat(ticker.lastPrice));
+            row.appendChild(priceCell);
+            
+            // 24h Change
+            const changeCell = document.createElement('td');
+            const change = parseFloat(ticker.priceChangePercent);
+            changeCell.textContent = `${change.toFixed(2)}%`;
+            changeCell.className = change >= 0 ? 'positive' : 'negative';
+            row.appendChild(changeCell);
+            
+            // 24h Volume
+            const volumeCell = document.createElement('td');
+            volumeCell.textContent = formatNumber(parseFloat(ticker.volume));
+            row.appendChild(volumeCell);
+            
+            // RSI
+            const rsiCell = document.createElement('td');
+            const klineData = await fetchKlineData(ticker.symbol);
+            const rsi = calculateRSI(klineData.map(k => k.close));
+            rsiCell.textContent = rsi.toFixed(2);
+            rsiCell.className = getRSIClass(rsi);
+            row.appendChild(rsiCell);
+            
+            // MACD
+            const macdCell = document.createElement('td');
+            const macdData = calculateMACD(klineData.map(k => k.close));
+            macdCell.textContent = `${macdData.macd.toFixed(4)} / ${macdData.signal.toFixed(4)}`;
+            row.appendChild(macdCell);
+            
+            // Open Interest (for futures)
+            const oiCell = document.createElement('td');
+            if (await isFuturesSymbol(ticker.symbol)) {
+                const oiData = await fetchOpenInterest(ticker.symbol);
+                oiCell.textContent = formatNumber(parseFloat(oiData.openInterest));
+            } else {
+                oiCell.textContent = 'N/A';
+            }
+            row.appendChild(oiCell);
+            
+            // Signal
+            const signal = generateSignal(rsi, macdData, change);
+            row.appendChild(displaySignal(signal));
+            
+            tableBody.appendChild(row);
         }
-        
-        // Tabloyu güncelle
-        updateMarketDisplay();
-        
     } catch (error) {
-        addLog(`Market verileri güncellenirken hata: ${error.message}`);
+        console.error('Market table update error:', error);
+        addLog(`Market table update error: ${error.message}`);
     }
 }
 
@@ -542,16 +549,13 @@ function updateMarketDisplay() {
 
 // Sayı formatlama fonksiyonu
 function formatNumber(num) {
-    if (num >= 1000000000) {
-        return (num / 1000000000).toFixed(2) + 'B';
-    }
     if (num >= 1000000) {
         return (num / 1000000).toFixed(2) + 'M';
-    }
-    if (num >= 1000) {
+    } else if (num >= 1000) {
         return (num / 1000).toFixed(2) + 'K';
+    } else {
+        return num.toFixed(2);
     }
-    return num.toFixed(2);
 }
 
 // RSI renk sınıfı belirleme
@@ -701,17 +705,7 @@ function connectWebSocket() {
                         ...existingMarket,
                         symbol: symbol,
                         price: parseFloat(data.p),
-<<<<<<< HEAD
                         lastUpdate: now
-=======
-                        change24h: parseFloat(data.r),
-                        volume24h: parseFloat(data.v || 0),
-                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
-                        rsi: indicators.rsi,
-                        macd: macdData,
-                        openInterest: parseFloat(data.o || 0),
-                        longShortRatio: parseFloat(data.l || 0)
->>>>>>> 0aa4a902d889c2f5f3419a7e9212654b9c303531
                     };
                     
                     // Kline verilerinden elde edilen göstergeleri güncelle
