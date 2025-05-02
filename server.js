@@ -5,7 +5,6 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 require('dotenv').config();
-const fetch = require('node-fetch');
 
 const app = express();
 const port = process.env.PORT || 3000;
