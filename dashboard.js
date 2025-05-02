@@ -701,7 +701,17 @@ function connectWebSocket() {
                         ...existingMarket,
                         symbol: symbol,
                         price: parseFloat(data.p),
+<<<<<<< HEAD
                         lastUpdate: now
+=======
+                        change24h: parseFloat(data.r),
+                        volume24h: parseFloat(data.v || 0),
+                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
+                        rsi: indicators.rsi,
+                        macd: macdData,
+                        openInterest: parseFloat(data.o || 0),
+                        longShortRatio: parseFloat(data.l || 0)
+>>>>>>> 0aa4a902d889c2f5f3419a7e9212654b9c303531
                     };
                     
                     // Kline verilerinden elde edilen göstergeleri güncelle
