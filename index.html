@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<<<<<<< HEAD
-=======
-    <title>QuantiFlows - Home</title>
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://api.binance.com https://fapi.binance.com; connect-src 'self' https://api.binance.com https://fapi.binance.com wss://stream.binance.com wss://fstream.binance.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';">
     <title>QuantiFlows - Home</title>
     <style>
         :root {
@@ -161,6 +158,74 @@
             cursor: pointer;
             font-size: 1.5rem;
         }
+
+        .market-table {
+            width: 100%;
+            max-width: 1200px;
+            margin: 2rem auto;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            box-shadow: var(--shadow);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .market-table th,
+        .market-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .market-table th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        .market-table tr:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .positive {
+            color: #10b981;
+        }
+
+        .negative {
+            color: #ef4444;
+        }
+
+        .overbought {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .oversold {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .neutral {
+            color: var(--text-color);
+        }
+
+        .long {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .short {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .weak-long {
+            color: #10b981;
+        }
+
+        .weak-short {
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -209,6 +274,21 @@
         </div>
     </section>
 
-    <script src="script.js"></script>
+    <table class="market-table">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>24h Change</th>
+                <th>24h Volume</th>
+                <th>Open Interest</th>
+                <th>RSI</th>
+                <th>Signal</th>
+            </tr>
+        </thead>
+        <tbody id="marketData"></tbody>
+    </table>
+
+    <script src="dashboard.js"></script>
 </body>
 </html> 

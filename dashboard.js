@@ -10,6 +10,11 @@ const disconnectBtn = document.getElementById('disconnect');
 const marketData = document.getElementById('marketData');
 const markets = new Map(); // Symbol -> Market Data
 const klineData = new Map(); // Symbol -> Kline Data
+const lastKlineUpdateTime = new Map(); // Symbol -> Son güncelleme zamanı
+
+// API endpoint constants - Use absolute URLs to work in both file:// and http:// contexts
+const BINANCE_API_BASE = 'http://localhost:3000/api/binance';
+const BINANCE_FUTURES_API_BASE = 'http://localhost:3000/api/futures';
 
 // Tema değiştirme fonksiyonu
 function toggleTheme() {
@@ -36,24 +41,54 @@ function toggleTheme() {
 window.addEventListener('load', () => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.body.setAttribute('data-theme', savedTheme);
-    connectWebSocket(); // WebSocket bağlantısını başlat
+    
+    // DOM elementlerini yükle
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+    
+    // WebSocket bağlantısını başlat
+    connectWebSocket();
 });
 
-// Tema değiştirme butonu
-const themeToggle = document.getElementById('themeToggle');
-themeToggle.addEventListener('click', toggleTheme);
+// API istekleri için yardımcı fonksiyon
+async function makeApiRequest(url, retries = 3, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url);
+            
+            // Rate limiting kontrolü
+            if (response.status === 429) {
+                const retryAfter = parseInt(response.headers.get('Retry-After') || '5');
+                addLog(`Rate limit aşıldı. ${retryAfter} saniye bekleniyor...`);
+                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                continue;
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return response;
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        }
+    }
+}
 
 // Kline verilerini çekme fonksiyonu
 async function fetchKlineData(symbol, interval = '1h', limit = 200) {
     try {
-        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const url = `${BINANCE_API_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const response = await makeApiRequest(url);
+        
         const data = await response.json();
         if (!Array.isArray(data) || data.length === 0) {
             throw new Error('Geçersiz kline verisi');
         }
+        
         return data.map(kline => ({
             time: kline[0],
             open: parseFloat(kline[1]),
@@ -212,10 +247,22 @@ function addLog(message) {
 }
 
 function updateStatus(connected) {
-    status.className = `status ${connected ? 'connected' : 'disconnected'}`;
-    status.textContent = `Bağlantı Durumu: ${connected ? 'Bağlı' : 'Bağlantı kuruluyor...'}`;
-    connectBtn.disabled = connected;
-    disconnectBtn.disabled = !connected;
+    const status = document.getElementById('status');
+    const connectBtn = document.getElementById('connect');
+    const disconnectBtn = document.getElementById('disconnect');
+    
+    if (status) {
+        status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        status.textContent = `Bağlantı Durumu: ${connected ? 'Bağlı' : 'Bağlantı kuruluyor...'}`;
+    }
+    
+    if (connectBtn) {
+        connectBtn.disabled = connected;
+    }
+    
+    if (disconnectBtn) {
+        disconnectBtn.disabled = !connected;
+    }
 }
 
 // Long/Short Ratio hesaplama fonksiyonu
@@ -318,132 +365,229 @@ function displayLongShortDetail(ratioData) {
     return container;
 }
 
-function updateMarketTable() {
-    marketData.innerHTML = '';
-    markets.forEach((market, symbol) => {
+// Futures markette işlem gören coinleri kontrol et
+async function isFuturesSymbol(symbol) {
+    try {
+        const url = `${BINANCE_FUTURES_API_BASE}/exchangeInfo`;
+        const response = await makeApiRequest(url);
+        const data = await response.json();
+        return data.symbols.some(s => s.symbol === symbol);
+    } catch (error) {
+        addLog(`Futures sembol kontrolü hatası (${symbol}): ${error.message}`);
+        return false;
+    }
+}
+
+// Açık pozisyon verilerini çekme fonksiyonu
+async function fetchOpenInterest(symbol) {
+    try {
+        // Önce futures markette işlem görüp görmediğini kontrol et
+        const isFutures = await isFuturesSymbol(symbol);
+        if (!isFutures) {
+            return {
+                openInterest: 0,
+                timestamp: Date.now()
+            };
+        }
+
+        const url = `${BINANCE_FUTURES_API_BASE}/openInterest?symbol=${symbol}`;
+        const response = await makeApiRequest(url);
+        const data = await response.json();
+        return {
+            openInterest: parseFloat(data.openInterest),
+            timestamp: data.time
+        };
+    } catch (error) {
+        addLog(`Açık pozisyon verisi çekme hatası (${symbol}): ${error.message}`);
+        return {
+            openInterest: 0,
+            timestamp: Date.now()
+        };
+    }
+}
+
+// Market verilerini güncelleme fonksiyonu
+async function updateMarketTable() {
+    try {
+        // Tüm market verilerini çek
+        const response = await makeApiRequest(`${BINANCE_API_BASE}/ticker/24hr`);
+        const allMarkets = await response.json();
+        
+        // USDT ile biten ve futures olmayan marketleri filtrele
+        const usdtMarkets = allMarkets.filter(market => 
+            market.symbol.endsWith('USDT') && 
+            !market.symbol.includes('_') &&
+            parseFloat(market.quoteVolume) > 1000000 // Minimum 1M USDT hacim
+        );
+
+        // Hacme göre sırala
+        usdtMarkets.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
+        
+        // İlk 50 marketi al
+        const topMarkets = usdtMarkets.slice(0, 50);
+        
+        // Her market için detaylı verileri çek
+        for (const market of topMarkets) {
+            const symbol = market.symbol;
+            
+            // 24 saatlik veriler
+            const priceChange = parseFloat(market.priceChangePercent);
+            const volume = parseFloat(market.quoteVolume);
+            const high = parseFloat(market.highPrice);
+            const low = parseFloat(market.lowPrice);
+            
+            // Kline verilerini çek
+            const klines = await fetchKlineData(symbol);
+            if (klines.length === 0) {
+                addLog(`Kline verisi bulunamadı, market atlanıyor: ${symbol}`);
+                continue;
+            }
+            
+            // Açık pozisyon verilerini çek
+            const openInterestData = await fetchOpenInterest(symbol);
+            
+            // Teknik göstergeleri hesapla
+            const prices = klines.map(k => k.close);
+            const rsi = calculateRSI(prices);
+            const macdData = calculateMACD(prices);
+            
+            // Signal oluştur
+            const signal = generateSignal(rsi, macdData, priceChange);
+            
+            // Market verilerini güncelle
+            markets.set(symbol, {
+                symbol,
+                price: parseFloat(market.lastPrice),
+                priceChange,
+                volume,
+                high,
+                low,
+                rsi,
+                macd: macdData,
+                signal,
+                openInterest: openInterestData.openInterest,
+                lastUpdate: Date.now()
+            });
+            
+            // Rate limiting için kısa bir bekleme
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        // Tabloyu güncelle
+        updateMarketDisplay();
+        
+    } catch (error) {
+        addLog(`Market verileri güncellenirken hata: ${error.message}`);
+    }
+}
+
+// Market verilerini görüntüleme fonksiyonu
+function updateMarketDisplay() {
+    const tableBody = document.getElementById('marketData');
+    tableBody.innerHTML = '';
+    
+    for (const [symbol, data] of markets) {
         const row = document.createElement('tr');
         
-        // Symbol with logo
+        // Symbol
         const symbolCell = document.createElement('td');
-        const symbolContainer = document.createElement('div');
-        symbolContainer.style.display = 'flex';
-        symbolContainer.style.alignItems = 'center';
-        symbolContainer.style.gap = '8px';
-
-        const logo = document.createElement('img');
-        logo.style.width = '24px';
-        logo.style.height = '24px';
-        logo.style.borderRadius = '50%';
-
-        // Coin logos
-        const coinLogos = {
-            'BTCUSDT': 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579',
-            'ETHUSDT': 'https://assets.coingecko.com/coins/images/279/large/ethereum.png?1595348880',
-            'BNBUSDT': 'https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png?1644979850',
-            'SOLUSDT': 'https://assets.coingecko.com/coins/images/4128/large/solana.png?1640133422',
-            'ADAUSDT': 'https://assets.coingecko.com/coins/images/975/large/cardano.png?1547034860',
-            'DOGEUSDT': 'https://assets.coingecko.com/coins/images/5/large/dogecoin.png?1547792256',
-            'XRPUSDT': 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png?1605778731',
-            'DOTUSDT': 'https://assets.coingecko.com/coins/images/12171/large/polkadot.png?1639712644',
-            'AVAXUSDT': 'https://assets.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png?1670992574',
-            'MATICUSDT': 'https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png?1624446912',
-            'LINKUSDT': 'https://assets.coingecko.com/coins/images/877/large/chainlink-new-logo.png?1547034700',
-            'LTCUSDT': 'https://assets.coingecko.com/coins/images/2/large/litecoin.png?1547031400',
-            'UNIUSDT': 'https://assets.coingecko.com/coins/images/12504/large/uniswap-uni.png?1600306604',
-            'ATOMUSDT': 'https://assets.coingecko.com/coins/images/1481/large/cosmos_hub.png?1555657960',
-            'FILUSDT': 'https://assets.coingecko.com/coins/images/12817/large/filecoin.png?1602753933',
-            'AXSUSDT': 'https://assets.coingecko.com/coins/images/13029/large/axie_infinity_logo.png?1604471082',
-            'NEARUSDT': 'https://assets.coingecko.com/coins/images/10365/large/near_icon.png?1601359077',
-            'ALGOUSDT': 'https://assets.coingecko.com/coins/images/4380/large/download.png?1547039725',
-            'VETUSDT': 'https://assets.coingecko.com/coins/images/116/large/VeChain-Logo-768x725.png?1598000999',
-            'ICPUSDT': 'https://assets.coingecko.com/coins/images/14495/large/Internet_Computer_logo.png?1620703073',
-            'ARBUSDT': 'https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg?1680097630',
-            'OPUSDT': 'https://assets.coingecko.com/coins/images/25244/large/Optimism.png?1660904599',
-            'APTUSDT': 'https://assets.coingecko.com/coins/images/26455/large/aptos_round.png?1666839629',
-            'INJUSDT': 'https://assets.coingecko.com/coins/images/12882/large/Secondary_Symbol.png?1628233237',
-            'GRTUSDT': 'https://assets.coingecko.com/coins/images/13397/large/Graph_Token.png?1608145566',
-            'AAVEUSDT': 'https://assets.coingecko.com/coins/images/12645/large/AAVE.png?1601374110',
-            'SNXUSDT': 'https://assets.coingecko.com/coins/images/3406/large/SNX.png?1598631139',
-            'CRVUSDT': 'https://assets.coingecko.com/coins/images/12124/large/Curve.png?1597369484',
-            '1INCHUSDT': 'https://assets.coingecko.com/coins/images/13469/large/1inch.png?1608803028',
-            'ENSUSDT': 'https://assets.coingecko.com/coins/images/19785/large/acatxTm8_400x400.jpg?1635850140',
-            'COMPUSDT': 'https://assets.coingecko.com/coins/images/10775/large/COMP.png?1592625425',
-            'SUSHIUSDT': 'https://assets.coingecko.com/coins/images/12271/large/512x512_Logo_no_chop.png?1606986688',
-            'CAKEUSDT': 'https://assets.coingecko.com/coins/images/12632/large/pancakeswap-cake-logo_%281%29.png?1629359065',
-            'SANDUSDT': 'https://assets.coingecko.com/coins/images/12129/large/sandbox_telegram.jpg?1597397942',
-            'MANAUSDT': 'https://assets.coingecko.com/coins/images/878/large/decentraland-mana.png?1550108745',
-            'GALAUSDT': 'https://assets.coingecko.com/coins/images/12493/large/GALA-COINGECKO.png?1600233435',
-            'CHZUSDT': 'https://assets.coingecko.com/coins/images/8834/large/Chiliz.png?1561970540',
-            'LRCUSDT': 'https://assets.coingecko.com/coins/images/913/large/LRC.png?1572852344',
-            'IMXUSDT': 'https://assets.coingecko.com/coins/images/17233/large/imx.png?1636691817',
-            'RNDRUSDT': 'https://assets.coingecko.com/coins/images/11636/large/rndr.png?1638840934'
-        };
-
-        logo.src = coinLogos[symbol] || 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579';
-        
-        const symbolText = document.createElement('span');
-        symbolText.textContent = symbol.replace('USDT', '');
-        
-        symbolContainer.appendChild(logo);
-        symbolContainer.appendChild(symbolText);
-        symbolCell.appendChild(symbolContainer);
+        symbolCell.textContent = symbol;
         row.appendChild(symbolCell);
-
-        // Price
+        
+        // Fiyat
         const priceCell = document.createElement('td');
-        priceCell.textContent = market.price.toFixed(2);
+        priceCell.textContent = data.price.toFixed(2);
         row.appendChild(priceCell);
-
-        // 24h Change
+        
+        // Değişim (24h Change)
         const changeCell = document.createElement('td');
-        changeCell.textContent = market.change24h.toFixed(2) + '%';
-        changeCell.className = market.change24h >= 0 ? 'positive' : 'negative';
+        changeCell.textContent = `${data.priceChange.toFixed(2)}%`;
+        changeCell.className = data.priceChange >= 0 ? 'positive' : 'negative';
         row.appendChild(changeCell);
-
-        // 24h Volume
+        
+        // 24s Hacim (24h Volume)
         const volumeCell = document.createElement('td');
-        volumeCell.textContent = market.volume24h.toLocaleString();
+        volumeCell.textContent = formatNumber(data.volume);
         row.appendChild(volumeCell);
-
+        
         // RSI
         const rsiCell = document.createElement('td');
-        rsiCell.textContent = `${market.rsi.toFixed(2)} (14h)`;
-        rsiCell.className = market.rsi > 70 ? 'negative' : market.rsi < 30 ? 'positive' : '';
+        rsiCell.textContent = data.rsi.toFixed(2);
+        rsiCell.className = getRSIClass(data.rsi);
         row.appendChild(rsiCell);
-
+        
         // MACD
         const macdCell = document.createElement('td');
-        macdCell.textContent = `MACD: ${market.macd.macd.toFixed(2)} | Signal: ${market.macd.signal.toFixed(2)} | Hist: ${market.macd.histogram.toFixed(2)}`;
-        macdCell.className = market.macd.histogram > 0 ? 'positive' : 'negative';
+        if (data.macd && typeof data.macd === 'object') {
+            macdCell.textContent = data.macd.histogram.toFixed(4);
+            macdCell.className = data.macd.histogram > 0 ? 'positive' : 'negative';
+        } else {
+            macdCell.textContent = 'N/A';
+        }
         row.appendChild(macdCell);
-
-        // Open Interest
+        
+        // Açık Pozisyon (Open Interest)
         const oiCell = document.createElement('td');
-        oiCell.textContent = market.openInterest.toLocaleString();
+        oiCell.textContent = data.openInterest > 0 ? formatNumber(data.openInterest) : 'N/A';
         row.appendChild(oiCell);
+        
+        // Long/Short Ratio
+        const lsRatioCell = document.createElement('td');
+        lsRatioCell.textContent = data.longShortRatio > 0 ? data.longShortRatio.toFixed(2) : 'N/A';
+        row.appendChild(lsRatioCell);
+        
+        tableBody.appendChild(row);
+    }
+}
 
-        // Long/Short Ratio - Yeni detaylı görünüm
-        const lsrCell = document.createElement('td');
-        // Open Interest değerini daha gerçekçi bir şekilde kullan
-        const baseValue = market.openInterest / 1000; // Open Interest'i 1000'e böl
-        const ratioData = calculateLongShortRatio(
-            [baseValue * market.longShortRatio], // Long pozisyonlar
-            [baseValue] // Short pozisyonlar
-        );
-        const detailView = displayLongShortDetail(ratioData);
-        lsrCell.appendChild(detailView);
-        row.appendChild(lsrCell);
+// Sayı formatlama fonksiyonu
+function formatNumber(num) {
+    if (num >= 1000000000) {
+        return (num / 1000000000).toFixed(2) + 'B';
+    }
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(2) + 'M';
+    }
+    if (num >= 1000) {
+        return (num / 1000).toFixed(2) + 'K';
+    }
+    return num.toFixed(2);
+}
 
-        marketData.appendChild(row);
-    });
+// RSI renk sınıfı belirleme
+function getRSIClass(rsi) {
+    if (rsi >= 70) return 'overbought';
+    if (rsi <= 30) return 'oversold';
+    return 'neutral';
 }
 
 // Kline verilerini güncelleme fonksiyonu
 async function updateKlineData(symbol) {
     try {
+        const now = Date.now();
+        const lastUpdate = lastKlineUpdateTime.get(symbol) || 0;
+        const updateInterval = 2 * 60 * 1000; // 2 dakika (milisaniye cinsinden)
+        
+        // Son güncellemeden bu yana 2 dakika geçmediyse ve kline verisi varsa, mevcut veriyi kullan
+        if (now - lastUpdate < updateInterval && klineData.has(symbol)) {
+            console.log(`${symbol} için önbellekten veri kullanılıyor. Sonraki güncelleme: ${Math.round((updateInterval - (now - lastUpdate)) / 1000)} saniye sonra.`);
+            const klines = klineData.get(symbol);
+            const closes = klines.map(k => k.close);
+            const rsi = calculateRSI(closes);
+            const macdData = calculateMACD(closes);
+            return { 
+                rsi, 
+                macd: macdData,
+                prices: closes
+            };
+        }
+        
+        // 2 dakika geçtiyse veya kline verisi yoksa, yeni veri çek
+        console.log(`${symbol} için yeni kline verisi çekiliyor...`);
         const klines = await fetchKlineData(symbol);
         if (klines.length > 0) {
             klineData.set(symbol, klines);
+            lastKlineUpdateTime.set(symbol, now);
             const closes = klines.map(k => k.close);
             const rsi = calculateRSI(closes);
             const macdData = calculateMACD(closes);
@@ -476,29 +620,18 @@ function connectWebSocket() {
         }
 
         console.log('WebSocket bağlantısı başlatılıyor...');
-<<<<<<< HEAD
         
-        // Alternatif WebSocket URL'si
-        const wsUrl = 'wss://stream.binance.com:9443/ws';
+        // Binance Futures WebSocket URL'si
+        const wsUrl = 'wss://fstream.binance.com/ws';
         console.log('Bağlanılacak URL:', wsUrl);
         
         ws = new WebSocket(wsUrl);
-=======
-        ws = new WebSocket('wss://fstream.binance.com/ws');
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
 
         ws.onopen = () => {
             console.log('WebSocket bağlantısı başarılı');
             reconnectAttempts = 0;
             updateStatus(true);
             
-<<<<<<< HEAD
-            // Subscribe to ticker stream
-            const subscribeMsg = {
-                method: "SUBSCRIBE",
-                params: [
-                    "btcusdt@ticker"
-=======
             // Subscribe to mark price stream
             const subscribeMsg = {
                 method: "SUBSCRIBE",
@@ -511,31 +644,21 @@ function connectWebSocket() {
                     "dogeusdt@markPrice@1s",
                     "dotusdt@markPrice@1s",
                     "uniusdt@markPrice@1s"
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
                 ],
                 id: 1
             };
 
             try {
-<<<<<<< HEAD
                 console.log('Abonelik mesajı gönderiliyor...');
                 ws.send(JSON.stringify(subscribeMsg));
                 console.log('Abonelik mesajı gönderildi');
-=======
-                ws.send(JSON.stringify(subscribeMsg));
-                console.log('Abonelik mesajı gönderildi:', subscribeMsg);
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             } catch (error) {
                 console.error('Abonelik mesajı gönderme hatası:', error);
             }
         };
 
         ws.onclose = (event) => {
-<<<<<<< HEAD
             console.log('WebSocket bağlantısı kapandı. Kod:', event.code, 'Sebep:', event.reason);
-=======
-            console.log('WebSocket bağlantısı kapandı:', event.code, event.reason);
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             updateStatus(false);
             
             if (reconnectAttempts < maxReconnectAttempts) {
@@ -550,10 +673,7 @@ function connectWebSocket() {
 
         ws.onerror = (error) => {
             console.error('WebSocket hatası:', error);
-<<<<<<< HEAD
             console.error('WebSocket durumu:', ws.readyState);
-=======
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
             addLog(`WebSocket hatası: ${error.message || 'Bilinmeyen hata'}`);
         };
 
@@ -562,36 +682,77 @@ function connectWebSocket() {
                 const data = JSON.parse(event.data);
                 console.log('Gelen veri:', data);
                 
-<<<<<<< HEAD
-                if (data.e === 'ticker') {
-=======
                 if (data.e === 'markPriceUpdate') {
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
                     const symbol = data.s;
-                    const indicators = await updateKlineData(symbol);
-                    const macdData = calculateMACD(indicators.prices);
                     
-                    const market = {
+                    // Kline verilerini güncelle ve göstergeleri hesapla
+                    const indicators = await updateKlineData(symbol);
+                    
+                    // Mevcut market verisini al veya yeni oluştur
+                    const existingMarket = markets.get(symbol) || {};
+                    
+                    // Son veri güncellemesinden bu yana geçen süre (milisaniye)
+                    const lastUpdate = existingMarket.lastUpdate || 0;
+                    const now = Date.now();
+                    const timeSinceLastUpdate = now - lastUpdate;
+                    
+                    // WebSocket'ten gelen verileri güncelle
+                    const updatedMarket = {
+                        ...existingMarket,
                         symbol: symbol,
-<<<<<<< HEAD
-                        price: parseFloat(data.c),
-                        change24h: parseFloat(data.P),
-                        volume24h: parseFloat(data.v || 0),
-                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.P)),
-=======
                         price: parseFloat(data.p),
-                        change24h: parseFloat(data.r),
-                        volume24h: parseFloat(data.v || 0),
-                        signal: generateSignal(indicators.rsi, macdData, parseFloat(data.r)),
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
-                        rsi: indicators.rsi,
-                        macd: macdData,
-                        openInterest: parseFloat(data.o || 0),
-                        longShortRatio: parseFloat(data.l || 0)
+                        lastUpdate: now
                     };
                     
-                    markets.set(symbol, market);
-                    updateMarketTable();
+                    // Kline verilerinden elde edilen göstergeleri güncelle
+                    if (indicators && indicators.prices && indicators.prices.length > 0) {
+                        const macdData = calculateMACD(indicators.prices);
+                        
+                        updatedMarket.rsi = indicators.rsi;
+                        updatedMarket.macd = macdData;
+                        updatedMarket.signal = generateSignal(indicators.rsi, macdData, parseFloat(data.r || 0));
+                    }
+                    
+                    // Her 2 dakikada bir veya ilk kez yükleniyorsa ek verileri getir
+                    const updateInterval = 2 * 60 * 1000; // 2 dakika
+                    if (timeSinceLastUpdate > updateInterval || !existingMarket.lastFullUpdate) {
+                        try {
+                            // 24 saatlik değişim ve hacim verilerini çek
+                            const tickerData = await fetchTickerData(symbol);
+                            updatedMarket.priceChange = tickerData.priceChange;
+                            updatedMarket.volume = tickerData.volume;
+                            updatedMarket.high = tickerData.high;
+                            updatedMarket.low = tickerData.low;
+                            
+                            // Açık pozisyon verisini çek
+                            const oiData = await fetchOpenInterest(symbol);
+                            updatedMarket.openInterest = oiData.openInterest;
+                            
+                            // Long/Short oranını çek
+                            const lsRatioData = await fetchLongShortRatio(symbol);
+                            updatedMarket.longShortRatio = lsRatioData.longShortRatio;
+                            
+                            // Tam güncelleme zamanını kaydet
+                            updatedMarket.lastFullUpdate = now;
+                            
+                            console.log(`${symbol} için tüm veriler güncellendi`);
+                        } catch (error) {
+                            console.error(`${symbol} için veri güncelleme hatası:`, error);
+                        }
+                    } else {
+                        // WebSocket'ten gelen fiyat değişimi verisini kullan (varsa)
+                        if (data.r) {
+                            updatedMarket.priceChange = parseFloat(data.r);
+                        }
+                        
+                        console.log(`${symbol} için kısmi güncelleme yapıldı. Sonraki tam güncelleme: ${Math.round((updateInterval - timeSinceLastUpdate) / 1000)} saniye sonra.`);
+                    }
+                    
+                    // Market verisini güncelle
+                    markets.set(symbol, updatedMarket);
+                    
+                    // Tabloyu güncelle
+                    updateMarketDisplay();
                 }
             } catch (error) {
                 console.error('Veri işleme hatası:', error);
@@ -599,10 +760,7 @@ function connectWebSocket() {
         };
     } catch (error) {
         console.error('WebSocket bağlantı hatası:', error);
-<<<<<<< HEAD
         console.error('Hata detayları:', error.message);
-=======
->>>>>>> 433c0adfa3cc14b27eba50aa8b9169988d241e54
         if (reconnectAttempts < maxReconnectAttempts) {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
             setTimeout(connectWebSocket, delay);
@@ -631,4 +789,73 @@ document.querySelectorAll('.info-tab').forEach(tab => {
         document.querySelectorAll('.info-panel').forEach(p => p.classList.remove('active'));
         document.getElementById(panelId).classList.add('active');
     });
+});
+
+// Sayfa yüklendiğinde veri çekme işlemini başlat
+document.addEventListener('DOMContentLoaded', () => {
+    // Tema ayarını yükle
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.body.setAttribute('data-theme', savedTheme);
+    
+    // Market verilerini çek ve güncelle
+    updateMarketTable();
+    
+    // Her 30 saniyede bir verileri güncelle
+    setInterval(updateMarketTable, 30000);
 }); 
+
+// Ticker verilerini çekme fonksiyonu (24 saatlik değişim ve hacim için)
+async function fetchTickerData(symbol) {
+    try {
+        const url = `${BINANCE_API_BASE}/ticker/24hr?symbol=${symbol}`;
+        const response = await makeApiRequest(url);
+        const data = await response.json();
+        
+        return {
+            priceChange: parseFloat(data.priceChangePercent),
+            volume: parseFloat(data.quoteVolume),
+            high: parseFloat(data.highPrice),
+            low: parseFloat(data.lowPrice),
+            timestamp: Date.now()
+        };
+    } catch (error) {
+        addLog(`Ticker verisi çekme hatası (${symbol}): ${error.message}`);
+        return {
+            priceChange: 0,
+            volume: 0,
+            high: 0,
+            low: 0,
+            timestamp: Date.now()
+        };
+    }
+}
+
+// Long/Short oranını çekme fonksiyonu
+async function fetchLongShortRatio(symbol) {
+    try {
+        // Symbol'ü doğru formata çevir (BTCUSDT -> BTC)
+        const baseAsset = symbol.replace(/USDT$/, '');
+        
+        const url = `${BINANCE_FUTURES_API_BASE}/globalLongShortAccountRatio?symbol=${baseAsset}&period=5m&limit=1`;
+        const response = await makeApiRequest(url);
+        const data = await response.json();
+        
+        if (Array.isArray(data) && data.length > 0) {
+            return {
+                longShortRatio: parseFloat(data[0].longShortRatio),
+                timestamp: Date.now()
+            };
+        }
+        
+        return {
+            longShortRatio: 0,
+            timestamp: Date.now()
+        };
+    } catch (error) {
+        addLog(`Long/Short oranı çekme hatası (${symbol}): ${error.message}`);
+        return {
+            longShortRatio: 0,
+            timestamp: Date.now()
+        };
+    }
+}

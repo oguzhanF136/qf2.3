@@ -13,6 +13,14 @@
     {
       "src": "/(.*)",
       "dest": "/$1"
+    },
+    {
+      "src": "/api/binance/(.*)",
+      "dest": "https://api.binance.com/api/v3/$1"
+    },
+    {
+      "src": "/api/futures/(.*)",
+      "dest": "https://fapi.binance.com/fapi/v1/$1"
     }
   ]
 } 
